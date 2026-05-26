@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Pallet Vision Counter</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+Thai:wght@400;500;700;900&display=swap');
+
+:root {
+  --bg: #080c10;
+  --s1: #0d1117;
+  --s2: #161b22;
+  --s3: #1c2128;
+  --border: #21262d;
+  --border2: #30363d;
+  --accent: #00d4aa;
+  --accent2: #005c4b;
+  --warn: #f0a500;
+  --danger: #ff4444;
+  --ok: #00d4aa;
+  --text: #cdd9e5;
+  --muted: #636e7b;
+  --mono: 'Space Mono', monospace;
+  --thai: 'Noto Sans Thai', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--thai);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ══ SCANNING PAGE ══ */
+#page-scan {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  position: relative;
+}
+
+/* camera viewport */
+.cam-wrap {
+  position: relative;
+  flex: 1;
+  background: #000;
+  overflow: hidden;
+}
+
+#video {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+#canvas { display: none; }
+
+/* HUD overlay */
+.hud {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* sweep zone indicator */
+.sweep-zone {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 88%; height: 60%;
+  border: 1.5px solid rgba(0,212,170,0.4);
+  border-radius: 8px;
+}
+.sweep-zone::before, .sweep-zone::after,
+.sz-br::before, .sz-br::after {
+  content:'';
+  position: absolute;
+  width: 20px; height: 20px;
+}
+.sweep-zone::before  { top:-2px;  left:-2px;  border-top:3px solid var(--accent);  border-left:3px solid var(--accent); border-radius: 4px 0 0 0; }
+.sweep-zone::after   { top:-2px;  right:-2px; border-top:3px solid var(--accent);  border-right:3px solid var(--accent); border-radius: 0 4px 0 0; }
+.sz-br::before { bottom:-2px; left:-2px;  border-bottom:3px solid var(--accent); border-left:3px solid var(--accent); border-radius: 0 0 0 4px; }
+.sz-br::after  { bottom:-2px; right:-2px; border-bottom:3px solid var(--accent); border-right:3px solid var(--accent); border-radius: 0 0 4px 0; }
+
+/* scan line sweep */
+.scan-line {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 30%, rgba(0,212,170,0.8) 50%, var(--accent) 70%, transparent 100%);
+  box-shadow: 0 0 12px 2px rgba(0,212,170,0.5);
+  opacity: 0;
+  transition: opacity .3s;
+  animation: sweepLine 2.5s ease-in-out infinite;
+}
+.scan-line.active { opacity: 1; }
+@keyframes sweepLine {
+  0%   { top: 20%; }
+  50%  { top: 78%; }
+  100% { top: 20%; }
+}
+
+/* detected boxes */
+.det-box {
+  position: absolute;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  background: rgba(0,212,170,0.08);
+  animation: boxPop .25s cubic-bezier(.34,1.56,.64,1) forwards;
+  pointer-events: none;
+  z-index: 12;
+}
+.det-box.new  { border-color: var(--accent); }
+.det-box.dup  { border-color: var(--danger); background: rgba(255,68,68,0.1); }
+.det-box .det-label {
+  position: absolute; top: -22px; left: 0;
+  background: var(--accent); color: #000;
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 3px;
+  white-space: nowrap;
+}
+.det-box.dup .det-label { background: var(--danger); color: #fff; }
+@keyframes boxPop {
+  from { transform: scale(.85); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* flash overlay */
+.flash {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 20;
+  transition: opacity .05s;
+}
+.flash.green { background: rgba(0,212,170,.25); }
+.flash.red   { background: rgba(255,68,68,.3); }
+.flash.show  { opacity: 1; }
+
+/* top status bar */
+.top-bar {
+  position: absolute;
+  top: 12px; left: 12px; right: 12px;
+  display: flex; gap: 8px;
+  z-index: 15;
+  pointer-events: none;
+}
+.pill {
+  background: rgba(8,12,16,.82);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  display: flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+}
+.pill .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+.pill .dot.live { background: var(--accent); animation: blink 1s infinite; }
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+
+/* big count overlay */
+.count-overlay {
+  position: absolute;
+  bottom: 120px; right: 16px;
+  background: rgba(8,12,16,.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 12px 16px;
+  text-align: center;
+  z-index: 15;
+  pointer-events: none;
+  min-width: 90px;
+}
+.count-overlay .co-num {
+  font-family: var(--mono);
+  font-size: 52px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+  transition: color .2s, transform .15s;
+}
+.count-overlay .co-num.bump { transform: scale(1.2); }
+.count-overlay .co-label { font-size: 10px; color: var(--muted); margin-top: 3px; letter-spacing:.05em; }
+.count-overlay .co-expected { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 4px; }
+.count-overlay .co-expected span { color: var(--text); }
+
+/* progress ring */
+.ring-wrap {
+  position: absolute;
+  bottom: 120px; left: 16px;
+  z-index: 15;
+  pointer-events: none;
+}
+.ring-wrap svg { transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: var(--border2); stroke-width: 4; }
+.ring-fg { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset .4s, stroke .3s; }
+
+/* bottom control bar */
+.bottom-bar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(8,12,16,.95) 40%, var(--bg) 100%);
+  padding: 16px 16px 28px;
+  display: flex; flex-direction: column; gap: 10px;
+  z-index: 15;
+}
+
+.ai-status {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--mono);
+  min-height: 18px;
+  transition: color .2s;
+}
+.ai-status.thinking { color: var(--warn); }
+.ai-status.ok       { color: var(--accent); }
+.ai-status.err      { color: var(--danger); }
+
+.ctrl-row {
+  display: flex; gap: 10px;
+}
+
+.ctrl-btn {
+  flex: 1;
+  padding: 13px 8px;
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  background: var(--s2);
+  color: var(--text);
+  font-family: var(--thai);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .1s, background .15s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.ctrl-btn:active { transform: scale(.95); }
+.ctrl-btn.primary { background: var(--accent); color: #000; border-color: var(--accent); flex: 2; }
+.ctrl-btn.danger  { background: #2d1a1a; color: var(--danger); border-color: #4a2020; }
+
+/* scanning active state */
+.ctrl-btn.scanning { background: #1a2d27; color: var(--accent); border-color: var(--accent2); }
+
+/* ══ SETUP PAGE ══ */
+#page-setup {
+  min-height: 100dvh;
+  padding: 20px 16px 40px;
+  display: flex; flex-direction: column; gap: 0;
+}
+
+.setup-header {
+  display: flex; align-items: center; gap: 12px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.logo-box {
+  width: 44px; height: 44px;
+  background: var(--accent2);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  display: grid; place-items: center;
+  font-size: 22px;
+}
+.setup-header h1 { font-size: 18px; font-weight: 700; line-height: 1.2; }
+.setup-header p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.form-field { margin-bottom: 18px; }
+.form-field label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 6px;
+}
+.form-field input {
+  width: 100%;
+  background: var(--s2);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 12px 14px;
+  font-size: 15px;
+  font-family: var(--thai);
+  outline: none;
+  transition: border-color .15s;
+  -webkit-appearance: none;
+}
+.form-field input:focus { border-color: var(--accent); }
+.form-field input::placeholder { color: var(--muted); }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.start-btn {
+  width: 100%; padding: 16px;
+  background: var(--accent); color: #000;
+  border: none; border-radius: 14px;
+  font-size: 16px; font-weight: 700;
+  font-family: var(--thai);
+  cursor: pointer;
+  transition: transform .1s, opacity .1s;
+  margin-top: 8px;
+}
+.start-btn:active { transform: scale(.97); opacity: .85; }
+
+/* history table */
+.history-section { margin-top: 28px; }
+.section-hdr {
+  font-family: var(--mono);
+  font-size: 10px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .08em;
+  margin-bottom: 10px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.clear-btn {
+  background: none; border: 1px solid var(--border2);
+  color: var(--muted); border-radius: 6px;
+  padding: 2px 10px; font-size: 10px; cursor: pointer;
+}
+.hist-table-wrap {
+  border-radius: 12px; border: 1px solid var(--border);
+  overflow-x: auto;
+}
+table { width:100%; border-collapse: collapse; font-family: var(--mono); font-size: 11px; }
+table th {
+  background: var(--s2); color: var(--muted);
+  padding: 8px 10px; text-align: left;
+  text-transform: uppercase; letter-spacing: .05em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text); white-space: nowrap; }
+table tr:last-child td { border-bottom: none; }
+.tag-ok   { color: var(--accent); font-weight:700; }
+.tag-over { color: var(--danger); font-weight:700; }
+.tag-less { color: var(--warn); font-weight:700; }
+
+.export-btn {
+  width: 100%; margin-top: 12px; padding: 12px;
+  background: var(--s2); color: var(--text);
+  border: 1px solid var(--border2); border-radius: 10px;
+  font-family: var(--thai); font-size: 14px; font-weight:600;
+  cursor: pointer; transition: transform .1s;
+}
+.export-btn:active { transform: scale(.97); }
+
+/* toast */
+.toast {
+  position: fixed; bottom:24px; left:50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--s2); border: 1px solid var(--border2);
+  color: var(--text); padding: 10px 20px;
+  border-radius: 12px; font-size: 13px; font-weight:600;
+  z-index: 999; transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+  white-space: nowrap; box-shadow: 0 8px 30px rgba(0,0,0,.6);
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.ok  { border-color: var(--accent); }
+.toast.err { border-color: var(--danger); }
+
+/* manual adj overlay */
+.adj-overlay {
+  position: absolute;
+  bottom: 120px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 8px; z-index: 20;
+  pointer-events: all;
+  opacity: 0; transition: opacity .2s;
+}
+.adj-overlay.visible { opacity:1; }
+.adj-btn {
+  width: 48px; height: 48px;
+  border-radius: 12px; border: none;
+  font-size: 22px; font-weight: 700; cursor: pointer;
+  display: grid; place-items: center;
+}
+.adj-m { background: #2d1a1a; color: var(--danger); border: 1px solid #4a2020; }
+.adj-p { background: #1a2d27; color: var(--accent); border: 1px solid var(--accent2); }
+</style>
+</head>
+<body>
+
+<!-- ══ PAGE: SETUP ══ -->
+<div id="page-setup">
+  <div class="setup-header">
+    <div class="logo-box">📦</div>
+    <div>
+      <h1>Pallet Vision Counter</h1>
+      <p>AI นับกระสอบอัตโนมัติ — ส่ายกล้องผ่านพาเลท</p>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-field">
+      <label>เลข Pallet</label>
+      <input id="s-pallet" type="text" placeholder="PLT-001"/>
+    </div>
+    <div class="form-field">
+      <label>จำนวนที่ต้องรับ</label>
+      <input id="s-expected" type="number" placeholder="40" inputmode="numeric"/>
+    </div>
+  </div>
+  <div class="form-field">
+    <label>ชื่อวัตถุดิบ</label>
+    <input id="s-material" type="text" placeholder="เช่น Whey Protein Concentrate 35%"/>
+  </div>
+
+  <button class="start-btn" onclick="startScanning()">▶ เริ่มสแกน</button>
+
+  <div class="history-section">
+    <div class="section-hdr">
+      ประวัติบันทึก
+      <button class="clear-btn" onclick="clearHistory()">ล้าง</button>
+    </div>
+    <div class="hist-table-wrap">
+      <table id="histTable">
+        <thead><tr>
+          <th>เวลา</th><th>Pallet</th><th>วัตถุดิบ</th>
+          <th>รับ</th><th>นับ</th><th>สถานะ</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <button class="export-btn" onclick="exportCSV()">📤 Export CSV</button>
+  </div>
+</div>
+
+<!-- ══ PAGE: SCAN ══ -->
+<div id="page-scan" style="display:none;">
+  <div class="cam-wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+
+    <!-- HUD -->
+    <div class="hud" id="hud">
+      <div class="sweep-zone"><div class="sz-br"></div></div>
+      <div class="scan-line" id="scanLine"></div>
+      <div class="flash" id="flash"></div>
+    </div>
+
+    <!-- det boxes injected here by JS -->
+    <div id="detBoxes"></div>
+
+    <!-- top bar -->
+    <div class="top-bar">
+      <div class="pill"><div class="dot" id="liveDot"></div><span id="camStatus">กล้องปิด</span></div>
+      <div class="pill" id="matPill" style="flex:1; justify-content:center; font-size:11px; overflow:hidden;">—</div>
+    </div>
+
+    <!-- count overlay -->
+    <div class="count-overlay">
+      <div class="co-num" id="coNum">0</div>
+      <div class="co-label">กระสอบ</div>
+      <div class="co-expected">/ <span id="coExp">?</span></div>
+    </div>
+
+    <!-- progress ring -->
+    <div class="ring-wrap">
+      <svg width="64" height="64" viewBox="0 0 64 64">
+        <circle class="ring-bg" cx="32" cy="32" r="28"/>
+        <circle class="ring-fg" id="ringFg" cx="32" cy="32" r="28"
+          stroke-dasharray="175.9" stroke-dashoffset="175.9"/>
+      </svg>
+    </div>
+
+    <!-- manual adj -->
+    <div class="adj-overlay" id="adjOverlay">
+      <button class="adj-btn adj-m" onclick="manualAdj(-1)">−</button>
+      <button class="adj-btn adj-p" onclick="manualAdj(+1)">+</button>
+    </div>
+
+    <!-- bottom bar -->
+    <div class="bottom-bar">
+      <div class="ai-status" id="aiStatus">รอเริ่ม...</div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn danger" onclick="cancelScan()">✕ ยกเลิก</button>
+        <button class="ctrl-btn primary" id="scanToggleBtn" onclick="toggleScan()">⏸ หยุดชั่วคราว</button>
+        <button class="ctrl-btn" onclick="toggleAdj()">✏️ แก้ไข</button>
+      </div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn primary" onclick="saveScanResult()" style="background:#1b4d8c; border-color:#2060c0;">💾 บันทึกผล</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══ STATE ══
+let bagCount     = 0;
+let expected     = 0;
+let palletId     = '';
+let materialName = '';
+let isScanning   = false;
+let scanInterval = null;
+let stream       = null;
+let adjVisible   = false;
+
+// Track uniqueness by region hash (position fingerprint)
+// Each detected bag gets an ID based on its center position cluster
+let bagRegions   = []; // [{cx, cy, id, label}]
+let nextBagId    = 1;
+const REGION_THRESHOLD = 80; // px — same bag if center within this distance
+
+// ══ PAGE SWITCH ══
+function showPage(id) {
+  document.getElementById('page-setup').style.display = id === 'setup' ? 'flex' : 'none';
+  document.getElementById('page-scan').style.display  = id === 'scan'  ? 'flex' : 'none';
+}
+
+// ══ SETUP → SCAN ══
+async function startScanning() {
+  palletId     = document.getElementById('s-pallet').value.trim();
+  materialName = document.getElementById('s-material').value.trim();
+  expected     = parseInt(document.getElementById('s-expected').value) || 0;
+  if (!palletId || !materialName || !expected) {
+    showToast('⚠️ กรอกข้อมูลให้ครบ', 'err'); return;
+  }
+
+  bagCount   = 0;
+  bagRegions = [];
+  nextBagId  = 1;
+  updateCountUI();
+
+  document.getElementById('matPill').textContent = materialName;
+  document.getElementById('coExp').textContent   = expected;
+
+  showPage('scan');
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    const vid = document.getElementById('video');
+    vid.srcObject = stream;
+    await vid.play();
+
+    document.getElementById('liveDot').classList.add('live');
+    document.getElementById('camStatus').textContent = 'LIVE';
+    document.getElementById('scanLine').classList.add('active');
+
+    isScanning = true;
+    document.getElementById('scanToggleBtn').textContent = '⏸ หยุดชั่วคราว';
+    document.getElementById('scanToggleBtn').className   = 'ctrl-btn scanning';
+
+    // Start capture loop every 2.5s
+    captureAndAnalyze();
+    scanInterval = setInterval(captureAndAnalyze, 2500);
+
+  } catch(e) {
+    showToast('❌ ไม่สามารถเปิดกล้องได้', 'err');
+    showPage('setup');
+  }
+}
+
+// ══ CAPTURE FRAME & CALL AI ══
+async function captureAndAnalyze() {
+  if (!isScanning) return;
+  const vid    = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  if (vid.readyState < 2) return;
+
+  canvas.width  = vid.videoWidth  || 640;
+  canvas.height = vid.videoHeight || 480;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(vid, 0, 0);
+
+  const base64 = canvas.toDataURL('image/jpeg', 0.82).split(',')[1];
+
+  setAIStatus('🤖 AI กำลังวิเคราะห์...', 'thinking');
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 800,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: 'image/jpeg', data: base64 }
+            },
+            {
+              type: 'text',
+              text: `You are a bag-counting system for a dairy factory pallet. This is a video frame captured while a worker pans a phone camera across the side of a pallet of bags (e.g. Whey Protein, Skim Milk Powder — 25 kg paper sacks).
+
+Count ONLY the clearly visible bags/sacks in this frame. Do NOT count pallets, wrapping film, debris, small items, or partial edges that are less than 30% visible.
+
+Respond with ONLY valid JSON, no other text:
+{
+  "bags": [
+    {"id": 1, "cx_pct": 45, "cy_pct": 30, "confidence": 0.9, "label": "bag"}
+  ],
+  "total_visible": 3,
+  "notes": "brief note"
+}
+
+cx_pct and cy_pct are the center of each bag as percentage of image width/height (0-100).
+confidence is 0.0-1.0. Only include bags with confidence >= 0.6.`
+            }
+          ]
+        }]
+      })
+    });
+
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+
+    const raw  = data.content.map(c => c.text || '').join('');
+    const json = JSON.parse(raw.replace(/```json|```/g, '').trim());
+
+    processDetections(json, canvas.width, canvas.height);
+    setAIStatus(`✅ พบ ${json.total_visible} กระสอบในเฟรม`, 'ok');
+
+  } catch(e) {
+    setAIStatus('⚠️ วิเคราะห์ไม่สำเร็จ ลองอีกครั้ง...', 'err');
+  }
+}
+
+// ══ PROCESS DETECTIONS ══
+function processDetections(json, imgW, imgH) {
+  const vid     = document.getElementById('video');
+  const dispW   = vid.offsetWidth;
+  const dispH   = vid.offsetHeight;
+  const boxes   = document.getElementById('detBoxes');
+
+  // clear old boxes after short delay
+  setTimeout(() => { boxes.innerHTML = ''; }, 1800);
+
+  if (!json.bags || !json.bags.length) return;
+
+  let newCount = 0;
+
+  json.bags.forEach(bag => {
+    if ((bag.confidence || 1) < 0.6) return;
+
+    // map pct → display px
+    const cx = (bag.cx_pct / 100) * dispW;
+    const cy = (bag.cy_pct / 100) * dispH;
+
+    // check if this region already counted
+    const isDup = bagRegions.some(r => {
+      const dx = r.cx - cx, dy = r.cy - cy;
+      return Math.sqrt(dx*dx + dy*dy) < REGION_THRESHOLD;
+    });
+
+    // box size estimate
+    const bw = dispW * 0.18;
+    const bh = dispH * 0.18;
+
+    // draw detection box
+    const div = document.createElement('div');
+    div.className = 'det-box ' + (isDup ? 'dup' : 'new');
+    div.style.left   = (cx - bw/2) + 'px';
+    div.style.top    = (cy - bh/2) + 'px';
+    div.style.width  = bw + 'px';
+    div.style.height = bh + 'px';
+    const lbl = document.createElement('div');
+    lbl.className = 'det-label';
+    lbl.textContent = isDup ? 'นับแล้ว' : '#' + nextBagId;
+    div.appendChild(lbl);
+    boxes.appendChild(div);
+
+    if (!isDup) {
+      bagRegions.push({ cx, cy, id: nextBagId });
+      nextBagId++;
+      bagCount++;
+      newCount++;
+    }
+  });
+
+  if (newCount > 0) {
+    flash('green');
+    bumpCount();
+    updateCountUI();
+    showToast(`+${newCount} กระสอบใหม่ รวม ${bagCount}`, 'ok');
+  }
+}
+
+// ══ COUNT UI ══
+function updateCountUI() {
+  const el = document.getElementById('coNum');
+  el.textContent = bagCount;
+
+  // color
+  if (expected > 0) {
+    if (bagCount < expected)      el.style.color = 'var(--warn)';
+    else if (bagCount === expected) el.style.color = 'var(--accent)';
+    else                           el.style.color = 'var(--danger)';
+  } else {
+    el.style.color = 'var(--accent)';
+  }
+
+  // ring
+  const pct    = expected > 0 ? Math.min(bagCount / expected, 1) : 0;
+  const circ   = 175.9;
+  const offset = circ - pct * circ;
+  const ring   = document.getElementById('ringFg');
+  ring.style.strokeDashoffset = offset;
+  ring.style.stroke = bagCount > expected ? 'var(--danger)' : bagCount === expected ? 'var(--accent)' : 'var(--warn)';
+}
+
+function bumpCount() {
+  const el = document.getElementById('coNum');
+  el.classList.add('bump');
+  setTimeout(() => el.classList.remove('bump'), 180);
+}
+
+// ══ FLASH ══
+function flash(color) {
+  const el = document.getElementById('flash');
+  el.className = 'flash ' + color + ' show';
+  setTimeout(() => el.classList.remove('show'), 300);
+}
+
+// ══ AI STATUS ══
+function setAIStatus(msg, cls) {
+  const el = document.getElementById('aiStatus');
+  el.textContent = msg;
+  el.className = 'ai-status ' + (cls || '');
+}
+
+// ══ TOGGLE SCAN ══
+function toggleScan() {
+  isScanning = !isScanning;
+  const btn = document.getElementById('scanToggleBtn');
+  const sl  = document.getElementById('scanLine');
+  if (isScanning) {
+    btn.textContent = '⏸ หยุดชั่วคราว';
+    btn.className   = 'ctrl-btn scanning';
+    sl.classList.add('active');
+    setAIStatus('กำลังสแกน...', '');
+  } else {
+    btn.textContent = '▶ สแกนต่อ';
+    btn.className   = 'ctrl-btn primary';
+    sl.classList.remove('active');
+    setAIStatus('หยุดชั่วคราว', '');
+  }
+}
+
+// ══ MANUAL ADJ ══
+function toggleAdj() {
+  adjVisible = !adjVisible;
+  document.getElementById('adjOverlay').className = 'adj-overlay' + (adjVisible ? ' visible' : '');
+}
+function manualAdj(delta) {
+  if (delta < 0 && bagCount <= 0) return;
+  bagCount += delta;
+  bumpCount();
+  updateCountUI();
+  showToast(delta > 0 ? '+1 แก้ไขด้วยตัวเอง' : '-1 แก้ไขด้วยตัวเอง', 'ok');
+}
+
+// ══ CANCEL ══
+function cancelScan() {
+  stopCamera();
+  bagCount   = 0;
+  bagRegions = [];
+  nextBagId  = 1;
+  document.getElementById('detBoxes').innerHTML = '';
+  showPage('setup');
+}
+
+function stopCamera() {
+  clearInterval(scanInterval);
+  isScanning = false;
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+}
+
+// ══ SAVE ══
+function saveScanResult() {
+  stopCamera();
+  const exp    = expected;
+  const status = bagCount === exp ? 'ครบ' : bagCount > exp ? 'เกิน' : 'ไม่ครบ';
+  const tagCls = bagCount === exp ? 'tag-ok' : bagCount > exp ? 'tag-over' : 'tag-less';
+
+  const tbody = document.querySelector('#histTable tbody');
+  const row   = tbody.insertRow(0);
+  row.insertCell(0).innerHTML = `<span style="color:var(--muted)">${new Date().toLocaleString('th-TH')}</span>`;
+  row.insertCell(1).textContent = palletId;
+  row.insertCell(2).textContent = materialName;
+  row.insertCell(3).textContent = exp;
+  row.insertCell(4).textContent = bagCount;
+  row.insertCell(5).innerHTML = `<span class="${tagCls}">${status}</span>`;
+
+  localStorage.setItem('plt_hist', document.querySelector('#histTable tbody').innerHTML);
+  showToast('💾 บันทึกเรียบร้อย!', 'ok');
+  showPage('setup');
+}
+
+// ══ HISTORY ══
+function loadHistory() {
+  const d = localStorage.getItem('plt_hist');
+  if (d) document.querySelector('#histTable tbody').innerHTML = d;
+}
+function clearHistory() {
+  if (!confirm('ล้างประวัติทั้งหมด?')) return;
+  document.querySelector('#histTable tbody').innerHTML = '';
+  localStorage.removeItem('plt_hist');
+}
+
+// ══ CSV ══
+function exportCSV() {
+  const rows = document.querySelectorAll('#histTable tr');
+  if (rows.length <= 1) { showToast('ยังไม่มีข้อมูล', 'err'); return; }
+  const csv = Array.from(rows).map(r =>
+    Array.from(r.querySelectorAll('td,th')).map(c => '"' + c.innerText + '"').join(',')
+  ).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `pallet_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ══ TOAST ══
+let toastT;
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = 'toast ' + (type||'') + ' show';
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ══ INIT ══
+loadHistory();
+</script>
+</body>
+</html>
