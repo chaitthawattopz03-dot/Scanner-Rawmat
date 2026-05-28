@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Pallet Tap Counter</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+Thai:wght@400;600;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
+
+:root {
+  --ink: #0a0a0a;
+  --paper: #f5f0e8;
+  --tape: #e8d5a3;
+  --stamp-r: #c0392b;
+  --stamp-g: #1a6b3c;
+  --wire: #2c3e50;
+  --wire2: #4a5568;
+  --chalk: #ffffff;
+  --caution: #f39c12;
+  --mono: 'JetBrains Mono', monospace;
+  --display: 'Bebas Neue', sans-serif;
+  --thai: 'Noto Sans Thai', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; touch-action: none; }
+
+/* ══ SETUP SCREEN ══ */
+#screen-setup {
+  height: 100dvh;
+  background: var(--paper);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 27px, rgba(0,0,0,.06) 27px, rgba(0,0,0,.06) 28px),
+    repeating-linear-gradient(90deg, transparent, transparent 27px, rgba(0,0,0,.04) 27px, rgba(0,0,0,.04) 28px);
+}
+
+.setup-top {
+  background: var(--ink);
+  padding: 20px 20px 18px;
+  position: relative;
+  overflow: hidden;
+}
+.setup-top::after {
+  content: '';
+  position: absolute; bottom: -8px; left: 0; right: 0;
+  height: 16px;
+  background: var(--paper);
+  clip-path: polygon(0 100%, 100% 100%, 100% 0, 97% 60%, 94% 20%, 91% 70%, 88% 10%, 85% 65%, 82% 25%, 79% 80%, 76% 15%, 73% 70%, 70% 30%, 67% 75%, 64% 20%, 61% 65%, 58% 25%, 55% 70%, 52% 15%, 49% 65%, 46% 30%, 43% 80%, 40% 15%, 37% 70%, 34% 25%, 31% 75%, 28% 20%, 25% 65%, 22% 30%, 19% 80%, 16% 15%, 13% 70%, 10% 25%, 7% 75%, 4% 20%, 0 60%);
+}
+.setup-top h1 {
+  font-family: var(--display);
+  font-size: 36px;
+  letter-spacing: .04em;
+  color: var(--chalk);
+  line-height: 1;
+}
+.setup-top p {
+  font-family: var(--thai);
+  font-size: 12px;
+  color: rgba(255,255,255,.5);
+  margin-top: 4px;
+  letter-spacing: .04em;
+}
+.setup-top .corner-stamp {
+  position: absolute; top: 14px; right: 16px;
+  width: 50px; height: 50px;
+  border: 3px solid var(--stamp-r);
+  border-radius: 50%;
+  display: grid; place-items: center;
+  color: var(--stamp-r);
+  font-family: var(--display);
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-align: center;
+  line-height: 1.2;
+  transform: rotate(-12deg);
+  opacity: .85;
+}
+
+.setup-body { padding: 24px 20px 32px; flex: 1; }
+
+.field-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--wire2);
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  margin-bottom: 5px;
+  display: flex; align-items: center; gap: 6px;
+}
+.field-label::before { content: ''; display: block; width: 3px; height: 12px; background: var(--ink); border-radius: 2px; }
+
+.field { margin-bottom: 18px; }
+.field input {
+  width: 100%;
+  background: rgba(255,255,255,.7);
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  color: var(--ink);
+  padding: 11px 14px;
+  font-size: 16px;
+  font-family: var(--thai);
+  outline: none;
+  box-shadow: 3px 3px 0 var(--ink);
+  transition: box-shadow .1s, transform .1s;
+  -webkit-appearance: none;
+}
+.field input:focus {
+  box-shadow: 5px 5px 0 var(--ink);
+  transform: translate(-1px, -1px);
+}
+.field input::placeholder { color: #aaa; }
+
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.start-btn {
+  width: 100%; padding: 18px;
+  background: var(--ink); color: var(--chalk);
+  border: none; border-radius: 0;
+  font-family: var(--display);
+  font-size: 26px; letter-spacing: .06em;
+  cursor: pointer;
+  box-shadow: 5px 5px 0 var(--stamp-r);
+  transition: box-shadow .1s, transform .1s;
+  margin-top: 8px;
+}
+.start-btn:active { box-shadow: 2px 2px 0 var(--stamp-r); transform: translate(3px, 3px); }
+
+.setup-divider {
+  border: none; border-top: 2px dashed rgba(0,0,0,.15);
+  margin: 28px 0 20px;
+}
+
+.history-title {
+  font-family: var(--display);
+  font-size: 22px; letter-spacing: .04em;
+  color: var(--ink); margin-bottom: 12px;
+}
+
+.hist-card {
+  background: white;
+  border: 2px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+  border-radius: 0;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.hist-card-head {
+  background: var(--ink); color: var(--chalk);
+  padding: 6px 12px;
+  font-family: var(--mono); font-size: 10px;
+  display: flex; justify-content: space-between;
+}
+.hist-card-body {
+  padding: 10px 12px;
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+.hist-stat { text-align: center; }
+.hist-stat .hs-num {
+  font-family: var(--display);
+  font-size: 28px; line-height: 1;
+  color: var(--ink);
+}
+.hist-stat .hs-label { font-family: var(--mono); font-size: 9px; color: var(--wire2); text-transform: uppercase; }
+.hist-badge {
+  display: inline-block; padding: 2px 10px;
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  border: 2px solid currentColor; border-radius: 0;
+}
+.hist-badge.ok   { color: var(--stamp-g); }
+.hist-badge.over { color: var(--stamp-r); }
+.hist-badge.less { color: var(--caution); }
+
+.clear-all {
+  width: 100%; margin-top: 12px; padding: 10px;
+  background: none; border: 2px solid var(--wire2);
+  color: var(--wire2); font-family: var(--thai);
+  font-size: 13px; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.clear-all:active { background: var(--wire2); color: white; }
+
+.export-btn {
+  width: 100%; margin-top: 10px; padding: 12px;
+  background: none; border: 2px solid var(--ink);
+  color: var(--ink); font-family: var(--display);
+  font-size: 18px; letter-spacing: .04em;
+  cursor: pointer; box-shadow: 3px 3px 0 var(--ink);
+  transition: box-shadow .1s, transform .1s;
+}
+.export-btn:active { box-shadow: 1px 1px 0 var(--ink); transform: translate(2px,2px); }
+
+/* ══ TAP SCREEN ══ */
+#screen-tap {
+  height: 100dvh;
+  display: none; flex-direction: column;
+  background: #000;
+  position: relative;
+}
+
+#video {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* tap marker */
+.tap-marker {
+  position: absolute;
+  width: 52px; height: 52px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 20;
+  animation: markerIn .3s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+.tap-marker svg { width: 100%; height: 100%; }
+.tap-marker.dup svg circle { stroke: var(--stamp-r); }
+.tap-marker.dup svg text { fill: var(--stamp-r); }
+
+@keyframes markerIn {
+  from { transform: translate(-50%,-50%) scale(.3); opacity: 0; }
+  to   { transform: translate(-50%,-50%) scale(1);  opacity: 1; }
+}
+@keyframes markerFade {
+  from { opacity: 1; }
+  to   { opacity: .5; transform: translate(-50%,-50%) scale(.85); }
+}
+.tap-marker.faded { animation: markerFade .3s forwards; }
+
+/* ripple on tap */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255,255,255,.35);
+  transform: translate(-50%,-50%) scale(0);
+  pointer-events: none;
+  z-index: 19;
+  animation: rippleAnim .5s ease-out forwards;
+}
+@keyframes rippleAnim {
+  to { transform: translate(-50%,-50%) scale(3); opacity: 0; }
+}
+
+/* HUD overlay — non-interactive */
+.hud-overlay {
+  position: absolute; inset: 0;
+  pointer-events: none !important;
+  z-index: 30;
+}
+.hud-overlay * {
+  pointer-events: none !important;
+}
+
+/* top info strip */
+.hud-top {
+  position: absolute; top: 0; left: 0; right: 0;
+  padding: 12px 14px 10px;
+  background: linear-gradient(180deg, rgba(0,0,0,.75) 0%, transparent 100%);
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.hud-pallet {
+  flex: 1;
+  font-family: var(--display);
+  font-size: 18px; letter-spacing: .05em;
+  color: var(--chalk); line-height: 1;
+}
+.hud-material {
+  font-family: var(--thai);
+  font-size: 11px; color: rgba(255,255,255,.6);
+  margin-top: 2px;
+}
+.live-badge {
+  background: var(--stamp-r);
+  color: white; font-family: var(--mono);
+  font-size: 10px; font-weight: 700;
+  padding: 3px 8px; letter-spacing: .08em;
+  display: flex; align-items: center; gap: 4px;
+  flex-shrink: 0; border-radius: 2px;
+}
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: white; animation: blink 1s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+/* big count */
+.hud-count {
+  position: absolute;
+  bottom: 110px; right: 16px;
+  text-align: right;
+  pointer-events: none;
+}
+.hud-count .hc-num {
+  font-family: var(--display);
+  font-size: 96px; line-height: 1;
+  color: var(--chalk);
+  text-shadow: 3px 3px 0 rgba(0,0,0,.5), 0 0 30px rgba(0,0,0,.8);
+  transition: color .2s;
+}
+.hud-count .hc-frac {
+  font-family: var(--mono); font-size: 14px;
+  color: rgba(255,255,255,.55); text-align: right;
+  margin-top: -6px;
+}
+.hud-count .hc-status {
+  font-family: var(--thai); font-size: 14px;
+  font-weight: 700; margin-top: 4px;
+  padding: 3px 10px; display: inline-block;
+  border-radius: 2px; color: var(--ink);
+  transition: background .2s;
+}
+
+/* progress bar across bottom of video */
+.hud-progress {
+  position: absolute; bottom: 104px; left: 0; right: 0;
+  height: 4px; background: rgba(255,255,255,.2);
+}
+.hud-progress-fill {
+  height: 100%; background: var(--chalk);
+  transition: width .4s, background .3s;
+  max-width: 100%;
+}
+
+/* tap instruction */
+.tap-hint {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  transition: opacity .5s;
+}
+.tap-hint.hidden { opacity: 0; }
+.tap-hint-inner {
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(255,255,255,.2);
+  border-radius: 12px;
+  padding: 16px 24px;
+  color: white;
+}
+.tap-hint-icon { font-size: 40px; margin-bottom: 8px; }
+.tap-hint-text { font-family: var(--thai); font-size: 15px; font-weight: 600; line-height: 1.5; }
+.tap-hint-sub  { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,.5); margin-top: 6px; }
+
+/* bottom controls */
+.hud-bottom {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 10px 14px 24px;
+  background: linear-gradient(0deg, rgba(0,0,0,.88) 0%, transparent 100%);
+  pointer-events: all;
+}
+.ctrl-row { display: flex; gap: 10px; }
+.c-btn {
+  flex: 1; padding: 13px 8px;
+  border: 2px solid rgba(255,255,255,.25);
+  background: rgba(0,0,0,.4);
+  backdrop-filter: blur(6px);
+  color: var(--chalk);
+  font-family: var(--thai); font-size: 14px; font-weight: 700;
+  cursor: pointer; border-radius: 6px;
+  transition: transform .1s, background .15s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.c-btn:active { transform: scale(.94); }
+.c-btn.primary { background: rgba(255,255,255,.9); color: var(--ink); border-color: white; flex: 2; }
+.c-btn.red     { border-color: rgba(192,57,43,.6); color: #ff6b6b; }
+.undo-count { background: rgba(255,255,255,.15); border-radius: 3px; padding: 0 5px; font-family: var(--mono); font-size: 11px; }
+
+/* last tap badge */
+.last-tap {
+  font-family: var(--mono); font-size: 11px;
+  color: rgba(255,255,255,.45);
+  text-align: center; margin-bottom: 8px;
+  min-height: 16px; transition: color .3s;
+}
+.last-tap.ok  { color: rgba(100,255,180,.7); }
+.last-tap.dup { color: rgba(255,100,100,.7); }
+
+/* flash */
+.tap-flash {
+  position: absolute; inset: 0;
+  pointer-events: none !important; z-index: 25;
+  opacity: 0; transition: opacity .05s;
+  border-radius: 0;
+}
+.tap-flash.g { background: rgba(26,107,60,.3); }
+.tap-flash.r { background: rgba(192,57,43,.4); }
+.tap-flash.show { opacity: 1; }
+
+/* bump anim */
+@keyframes bump { 0%{transform:scale(1)} 40%{transform:scale(1.12)} 100%{transform:scale(1)} }
+.bump { animation: bump .18s ease; }
+
+/* toast */
+.toast {
+  position: fixed; bottom: 90px; left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  background: var(--ink); color: var(--chalk);
+  border-left: 4px solid var(--stamp-g);
+  padding: 9px 18px; font-family: var(--thai);
+  font-size: 13px; font-weight: 600;
+  z-index: 999; transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+  white-space: nowrap; box-shadow: 4px 4px 0 rgba(0,0,0,.5);
+  border-radius: 0;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.err  { border-left-color: var(--stamp-r); }
+</style>
+</head>
+<body>
+
+<!-- ══ SETUP ══ -->
+<div id="screen-setup">
+  <div class="setup-top">
+    <h1>PALLET TAP COUNTER</h1>
+    <p>แตะกระสอบบนหน้าจอ — ระบบนับและ lock ตำแหน่ง</p>
+    <div class="corner-stamp">TAP<br>TO<br>COUNT</div>
+  </div>
+
+  <div class="setup-body">
+    <div class="field-row">
+      <div class="field">
+        <div class="field-label">Pallet No.</div>
+        <input id="s-pallet" type="text" placeholder="PLT-001"/>
+      </div>
+      <div class="field">
+        <div class="field-label">จำนวนที่ต้องรับ</div>
+        <input id="s-expected" type="number" placeholder="40" inputmode="numeric"/>
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-label">ชื่อวัตถุดิบ</div>
+      <input id="s-material" type="text" placeholder="เช่น Whey Protein Concentrate 35%"/>
+    </div>
+
+    <button class="start-btn" onclick="startTap()">▶ เริ่มสแกน</button>
+
+    <hr class="setup-divider"/>
+
+    <div class="history-title">HISTORY</div>
+    <div id="histCards"></div>
+
+    <button class="export-btn" onclick="exportCSV()">↓ EXPORT CSV</button>
+    <button class="clear-all" onclick="clearAll()">ล้างประวัติทั้งหมด</button>
+  </div>
+</div>
+
+<!-- ══ TAP SCREEN ══ -->
+<div id="screen-tap">
+  <video id="video" autoplay playsinline muted></video>
+  <div class="tap-flash" id="flash"></div>
+
+  <!-- tap markers container -->
+  <div id="markers" style="position:absolute;inset:0;z-index:20;"></div>
+
+  <!-- HUD (non-interactive layer) -->
+  <div class="hud-overlay">
+    <div class="hud-top">
+      <div>
+        <div class="hud-pallet" id="hud-pallet">—</div>
+        <div class="hud-material" id="hud-material">—</div>
+      </div>
+      <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    </div>
+
+    <div class="tap-hint" id="tapHint">
+      <div class="tap-hint-inner">
+        <div class="tap-hint-icon">👆</div>
+        <div class="tap-hint-text">แตะกระสอบแต่ละใบบนหน้าจอ<br>ระบบจะ lock ตำแหน่งไว้</div>
+        <div class="tap-hint-sub">แตะซ้ำตำแหน่งเดิม = ยกเลิก</div>
+      </div>
+    </div>
+
+    <div class="hud-count">
+      <div class="hc-num" id="hcNum">0</div>
+      <div class="hc-frac" id="hcFrac">/ 0</div>
+      <div class="hc-status" id="hcStatus" style="background:rgba(255,255,255,.15); color:white;">รอแตะ</div>
+    </div>
+
+    <div class="hud-progress"><div class="hud-progress-fill" id="progFill" style="width:0%"></div></div>
+  </div>
+
+  <!-- Bottom controls (interactive) -->
+  <div class="hud-bottom" style="pointer-events:all; position:absolute; bottom:0; left:0; right:0; z-index:35;">
+    <div class="last-tap" id="lastTap">แตะกระสอบในกล้องเพื่อเริ่มนับ</div>
+    <div class="ctrl-row">
+      <button class="c-btn red" onclick="cancelTap()">✕</button>
+      <button class="c-btn primary" onclick="saveResult()">💾 บันทึกผล</button>
+      <button class="c-btn" id="undoBtn" onclick="undoLast()">↩ <span class="undo-count" id="undoCnt">0</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══ STATE ══
+let bagCount   = 0;
+let expected   = 0;
+let palletId   = '';
+let matName    = '';
+let stream     = null;
+let history    = [];
+let tapLog     = []; // [{x, y, id, el}]
+let nextId     = 1;
+const DUP_R    = 55;  // px radius = same bag
+
+// ══ SETUP → TAP ══
+async function startTap() {
+  palletId = document.getElementById('s-pallet').value.trim();
+  matName  = document.getElementById('s-material').value.trim();
+  expected = parseInt(document.getElementById('s-expected').value) || 0;
+  if (!palletId || !matName || !expected) { showToast('⚠️ กรอกข้อมูลให้ครบ', true); return; }
+
+  bagCount = 0; tapLog = []; nextId = 1;
+
+  document.getElementById('hud-pallet').textContent  = palletId;
+  document.getElementById('hud-material').textContent = matName;
+  document.getElementById('hcFrac').textContent       = '/ ' + expected;
+  document.getElementById('markers').innerHTML        = '';
+  updateHUD();
+
+  document.getElementById('screen-setup').style.display = 'none';
+  document.getElementById('screen-tap').style.display   = 'flex';
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width:{ideal:1280}, height:{ideal:720} }
+    });
+    document.getElementById('video').srcObject = stream;
+    await document.getElementById('video').play();
+  } catch(e) {
+    showToast('❌ ไม่สามารถเปิดกล้องได้', true);
+    goSetup();
+  }
+
+  // Attach tap listener to the whole screen
+  document.addEventListener('touchstart', onTap, { passive: false });
+  document.addEventListener('pointerdown', onTap, { passive: false });
+}
+
+// ══ TAP HANDLER ══
+let _lastTapTime = 0;
+function onTap(e) {
+  // dedupe: touchstart + pointerdown both fire, ignore duplicate within 100ms
+  const now = Date.now();
+  if (now - _lastTapTime < 120) return;
+  _lastTapTime = now;
+
+  // only active when tap screen is visible
+  if (document.getElementById('screen-tap').style.display === 'none') return;
+
+  // ignore buttons and bottom bar
+  if (e.target.closest('button') || e.target.closest('.hud-bottom')) return;
+  e.preventDefault();
+
+  // get coordinates (touch or pointer)
+  const src = (e.touches && e.touches[0]) || e;
+  const x = src.clientX;
+  const y = src.clientY;
+
+  // hide hint after first tap
+  document.getElementById('tapHint').classList.add('hidden');
+
+  // check duplicate region
+  const dupIdx = tapLog.findIndex(t => {
+    const dx = t.x - x, dy = t.y - y;
+    return Math.sqrt(dx*dx + dy*dy) < DUP_R;
+  });
+
+  if (dupIdx !== -1) {
+    // UNDO that tap
+    const removed = tapLog.splice(dupIdx, 1)[0];
+    removed.el.remove();
+    bagCount--;
+    ripple(x, y, true);
+    doFlash('r');
+    setLastTap('↩ ยกเลิกกระสอบ #' + removed.id, 'dup');
+    showToast('↩ ยกเลิกกระสอบ #' + removed.id);
+  } else {
+    // NEW tap
+    const id = nextId++;
+    bagCount++;
+    const el = createMarker(x, y, id, false);
+    tapLog.push({ x, y, id, el });
+    ripple(x, y, false);
+    doFlash('g');
+    setLastTap(`✅ นับกระสอบ #${id}`, 'ok');
+    if (bagCount === 1) showToast('เริ่มนับแล้ว — แตะกระสอบแต่ละใบ');
+  }
+
+  updateHUD();
+}
+
+// ══ MARKER ══
+function createMarker(x, y, id, isDup) {
+  const div = document.createElement('div');
+  div.className = 'tap-marker' + (isDup ? ' dup' : '');
+  div.style.left = x + 'px';
+  div.style.top  = y + 'px';
+  div.innerHTML = `
+    <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="26" cy="26" r="22" stroke="white" stroke-width="2.5" fill="rgba(0,0,0,.45)"/>
+      <circle cx="26" cy="26" r="4" fill="white" opacity=".8"/>
+      <text x="26" y="14" text-anchor="middle" fill="white" font-family="'Bebas Neue',sans-serif" font-size="11" letter-spacing=".05em">#${id}</text>
+    </svg>`;
+  document.getElementById('markers').appendChild(div);
+  return div;
+}
+
+// ══ RIPPLE ══
+function ripple(x, y, isDup) {
+  const r = document.createElement('div');
+  r.className = 'ripple';
+  r.style.cssText = `left:${x}px; top:${y}px; width:${isDup?60:80}px; height:${isDup?60:80}px; border: 2px solid ${isDup?'rgba(255,80,80,.7)':'rgba(255,255,255,.7)'};`;
+  document.getElementById('markers').appendChild(r);
+  setTimeout(() => r.remove(), 500);
+}
+
+// ══ FLASH ══
+function doFlash(c) {
+  const el = document.getElementById('flash');
+  el.className = 'tap-flash ' + c + ' show';
+  setTimeout(() => el.classList.remove('show'), 180);
+}
+
+// ══ HUD UPDATE ══
+function updateHUD() {
+  const numEl  = document.getElementById('hcNum');
+  const stEl   = document.getElementById('hcStatus');
+  const prog   = document.getElementById('progFill');
+  const undoEl = document.getElementById('undoCnt');
+
+  numEl.textContent = bagCount;
+  undoEl.textContent = tapLog.length;
+
+  // bump
+  numEl.classList.remove('bump');
+  void numEl.offsetWidth;
+  numEl.classList.add('bump');
+
+  const pct = expected > 0 ? Math.min(bagCount / expected * 100, 100) : 0;
+  prog.style.width = pct + '%';
+
+  if (bagCount === 0) {
+    numEl.style.color = 'white';
+    stEl.style.background = 'rgba(255,255,255,.15)';
+    stEl.style.color = 'white';
+    stEl.textContent = 'รอแตะ';
+    prog.style.background = 'white';
+  } else if (bagCount < expected) {
+    numEl.style.color = '#ffd166';
+    stEl.style.background = 'rgba(243,156,18,.85)';
+    stEl.style.color = '#000';
+    stEl.textContent = `ขาด ${expected - bagCount} ใบ`;
+    prog.style.background = '#f39c12';
+  } else if (bagCount === expected) {
+    numEl.style.color = '#a8ffda';
+    stEl.style.background = 'rgba(26,107,60,.9)';
+    stEl.style.color = 'white';
+    stEl.textContent = '✅ ครบ!';
+    prog.style.background = '#2ecc71';
+  } else {
+    numEl.style.color = '#ff8080';
+    stEl.style.background = 'rgba(192,57,43,.9)';
+    stEl.style.color = 'white';
+    stEl.textContent = `เกิน ${bagCount - expected} ใบ ⚠️`;
+    prog.style.background = '#e74c3c';
+  }
+}
+
+function setLastTap(msg, cls) {
+  const el = document.getElementById('lastTap');
+  el.textContent = msg;
+  el.className = 'last-tap ' + (cls || '');
+}
+
+// ══ UNDO LAST ══
+function undoLast() {
+  if (!tapLog.length) return;
+  const last = tapLog.pop();
+  last.el.remove();
+  bagCount--;
+  updateHUD();
+  setLastTap('↩ ยกเลิกกระสอบ #' + last.id, 'dup');
+  showToast('↩ ยกเลิก #' + last.id);
+}
+
+// ══ SAVE ══
+function saveResult() {
+  stopCam();
+  const status = bagCount === expected ? 'ครบ' : bagCount > expected ? 'เกิน' : 'ไม่ครบ';
+  const rec = {
+    time: new Date().toLocaleString('th-TH'),
+    pallet: palletId, material: matName,
+    expected, actual: bagCount, status
+  };
+  history.unshift(rec);
+  saveHistory();
+  showToast('💾 บันทึกเรียบร้อย!');
+  goSetup();
+}
+
+// ══ CANCEL ══
+function cancelTap() {
+  stopCam();
+  goSetup();
+}
+
+function stopCam() {
+  document.removeEventListener('touchstart', onTap);
+  document.removeEventListener('pointerdown', onTap);
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+}
+
+function goSetup() {
+  document.getElementById('screen-tap').style.display   = 'none';
+  document.getElementById('screen-setup').style.display = 'flex';
+  renderHistory();
+}
+
+// ══ HISTORY ══
+function saveHistory()  { localStorage.setItem('pltTapHist', JSON.stringify(history)); }
+function loadHistory()  { history = JSON.parse(localStorage.getItem('pltTapHist') || '[]'); }
+function clearAll()     { if (!confirm('ล้างประวัติทั้งหมด?')) return; history=[]; saveHistory(); renderHistory(); }
+
+function renderHistory() {
+  const c = document.getElementById('histCards');
+  if (!history.length) { c.innerHTML = '<p style="font-family:var(--mono);font-size:11px;color:#aaa;text-align:center;padding:16px 0;">ยังไม่มีประวัติ</p>'; return; }
+  c.innerHTML = history.map(r => {
+    const cls = r.status === 'ครบ' ? 'ok' : r.status === 'เกิน' ? 'over' : 'less';
+    return `
+    <div class="hist-card">
+      <div class="hist-card-head">
+        <span>${r.pallet} — ${r.material}</span>
+        <span>${r.time}</span>
+      </div>
+      <div class="hist-card-body">
+        <div class="hist-stat"><div class="hs-num">${r.expected}</div><div class="hs-label">ที่ต้องรับ</div></div>
+        <div class="hist-stat"><div class="hs-num">${r.actual}</div><div class="hs-label">นับได้</div></div>
+        <div class="hist-stat" style="display:flex;align-items:center;justify-content:center;">
+          <span class="hist-badge ${cls}">${r.status}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══ CSV ══
+function exportCSV() {
+  if (!history.length) { showToast('ยังไม่มีข้อมูล', true); return; }
+  const hdr = '"เวลา","Pallet","วัตถุดิบ","ที่ต้องรับ","นับได้","สถานะ"';
+  const rows = history.map(r =>
+    `"${r.time}","${r.pallet}","${r.material}","${r.expected}","${r.actual}","${r.status}"`
+  );
+  const blob = new Blob(['\uFEFF' + [hdr,...rows].join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `pallet_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ══ TOAST ══
+let toastT;
+function showToast(msg, err) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ══ INIT ══
+loadHistory();
+renderHistory();
+</script>
+</body>
+</html>
